@@ -19,6 +19,14 @@ const pluginConfig = (ctx: IPicGo): IPluginConfig[] => {
       default: (userConfig as IPluginConfig).format || '',
       message: '{localFolder:N:L}',
       required: false
+    },
+    {
+      name: 'targetFolders',
+      type: 'input',
+      alias: '目标目录',
+      default: (userConfig as IPluginConfig).targetFolders || '',
+      message: '多个目录用逗号分隔，留空则处理所有图片',
+      required: false
     }
   ]
 }
@@ -37,10 +45,33 @@ export = (ctx: IPicGo) => {
           throw new Error('rename image conflict with the timestamp renaming of picgo')
         }
         const format: string = ctx.getConfig('picgo-plugin-rename-eagle.format') || ''
+        const targetFolders: string = ctx.getConfig('picgo-plugin-rename-eagle.targetFolders') || ''
+        const targetPaths = targetFolders
+        .split(',')
+        .map(f => path.normalize(f.trim()))
+        .filter(f => f.length > 0)
+
         ctx.output = ctx.output.map((item, i) => {
           let fileName = item.fileName
           // 获取即将输出的文件名
           const oldName = ctx.rawInputPath![i]
+          const fileDir = path.dirname(oldName)
+          
+          // 目录过滤逻辑
+          if (targetPaths.length > 0) {
+            const isInTarget = targetPaths.some(targetDir => {
+              const normalizedTarget = path.normalize(targetDir)
+              // 处理目录结尾斜杠问题
+              const compareDir = normalizedTarget.endsWith(path.sep) 
+                ? normalizedTarget.slice(0, -1)
+                : normalizedTarget
+              return fileDir.startsWith(compareDir)
+            })
+            
+            if (!isInTarget) {
+              return item // 跳过不在目标目录的文件
+            }
+          }
           if (format) {
             // 去除空格
             fileName = format
